@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"io"
 	"net/http"
 
@@ -43,20 +42,16 @@ func (v *UploadHandler) HandleVideoUpload(c echo.Context) error {
 
 	src, err := file.Open()
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to open file"})
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to open file")
 	}
 	defer src.Close()
 
 	fileContent, err := io.ReadAll(src)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to read file"})
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to read file")
 	}
 	if err := v.videoUpload.Store(ctx, req.Title, req.Description, fileContent); err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to upload video"})
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to upload video")
 	}
-	return c.JSON(http.StatusCreated, map[string]string{"message": "video uploaded successfully"})
-}
-
-type Storage interface {
-	Persist(ctx context.Context, title string, description string) error
+	return echo.NewHTTPError(http.StatusCreated, "video uploaded successfully")
 }
