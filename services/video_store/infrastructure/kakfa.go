@@ -1,6 +1,10 @@
 package infrastructure
 
-import "github.com/IBM/sarama"
+import (
+	"fmt"
+
+	"github.com/IBM/sarama"
+)
 
 const (
 	KAFKA_BROKER_URL = "localhost:9092"
@@ -15,22 +19,20 @@ func (p *Publisher) Close() error {
 	return p.syncProducer.Close()
 }
 
-// NewProducer inicializa o produtor do Sarama e retorna a interface Producer.
-func NewPublisher() *Publisher {
+func NewPublisher() (*Publisher, error) {
 	config := sarama.NewConfig()
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Retry.Max = 5
 	config.Producer.Return.Successes = true
-	config.Version = sarama.V3_0_0_0 // Ajuste a versão conforme necessário
-
+	config.Version = sarama.V3_0_0_0
 	syncProducer, err := sarama.NewSyncProducer([]string{KAFKA_BROKER_URL}, config)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to create Sarama producer: %w", err)
 	}
 
 	return &Publisher{
 		syncProducer: syncProducer,
-	}
+	}, nil
 }
 
 func (p *Publisher) SendMessage(key string, value []byte) error {
