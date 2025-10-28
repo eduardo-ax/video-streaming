@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"fmt"
+	"mime/multipart"
 )
 
 type Video struct {
@@ -24,26 +25,28 @@ type VideoUploader interface {
 }
 
 type VideoManager struct {
-	db  Storage
-	pub MessagePublisher
+	db          Storage
+	pub         MessagePublisher
+	ObjectStore ObjectStore
 }
 
-func NewVideoManager(db Storage, pub MessagePublisher) *VideoManager {
+func NewVideoManager(db Storage, pub MessagePublisher, objectStore ObjectStore) *VideoManager {
 	return &VideoManager{
-		db: db,
+		db:          db,
+		pub:         pub,
+		ObjectStore: objectStore,
 	}
 }
 
 func (v *VideoManager) Store(ctx context.Context, title string, description string, content []byte) error {
-
-	fmt.Printf("Saving video: %s, Description: %s, Size: %d bytes\n", title, description, len(content))
 	id, err := v.db.Persist(ctx, title, description)
-
 	if err != nil {
 		return err
 	}
 	fmt.Printf("Video saved with ID: %d\n", id)
-	v.pub.SendMessage(fmt.Sprintf("teste", "teste"), content)
+	testMessage := fmt.Sprintf("ID do Video: %d", id)
+	testContent := []byte(testMessage)
+	v.pub.SendMessage(fmt.Sprintf("%d", id), testContent)
 	return nil
 }
 
@@ -53,4 +56,8 @@ type Storage interface {
 
 type MessagePublisher interface {
 	SendMessage(key string, value []byte) error
+}
+
+type ObjectStore interface {
+	UploadVideo(ctx context.Context, file *multipart.FileHeader) (string, error)
 }
