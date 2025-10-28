@@ -1,13 +1,27 @@
 package main
 
 import (
+	"context"
+	"log"
+	"os"
+
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/eduardo-ax/video-streaming/services/video_store/api"
 	"github.com/eduardo-ax/video-streaming/services/video_store/domain"
 	"github.com/eduardo-ax/video-streaming/services/video_store/infrastructure"
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo"
 )
 
 func main() {
+
+	err := godotenv.Load()
+
+	if err != nil {
+		log.Println("Aviso: Não foi possível carregar o arquivo .env, buscando variáveis de ambiente.")
+	}
+
 	echoServer := echo.New()
 	v1Group := echoServer.Group("/v1")
 
@@ -15,10 +29,23 @@ func main() {
 	db := infrastructure.NewDatabase(pool)
 	defer db.Close()
 
-	pub := infrastructure.NewPublisher()
+	cfg, err := config.LoadDefaultConfig(context.TODO())
+	s3Client := s3.NewFromConfig(cfg)
+
+	bucketName := os.Getenv("S3_BUCKET_NAME")
+	if bucketName == "" {
+		log.Fatal("Fatal Error: S3_BUCKET_NAME environment variable is not set")
+	}
+
+	objectStore := infrastructure.NewObjectStore(s3Client, bucketName)
+
+	pub, err := infrastructure.NewPublisher()
+	if err != nil {
+		log.Fatalf("FATAL ERROR: Could not initialize Kafka Publisher: %v", err)
+	}
 	defer pub.Close()
 
-	videoUpload := domain.NewVideoManager(db, pub)
+	videoUpload := domain.NewVideoManager(db, pub, objectStore)
 	handler := api.NewVideoHandler(videoUpload)
 	handler.Register(v1Group)
 
