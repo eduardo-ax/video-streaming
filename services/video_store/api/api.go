@@ -1,7 +1,6 @@
 package api
 
 import (
-	"io"
 	"net/http"
 
 	"github.com/eduardo-ax/video-streaming/services/video_store/domain"
@@ -40,17 +39,7 @@ func (v *UploadHandler) HandleVideoUpload(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "file is required")
 	}
 
-	src, err := file.Open()
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to open file")
-	}
-	defer src.Close()
-
-	fileContent, err := io.ReadAll(src)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to read file")
-	}
-	if err := v.videoUpload.Store(ctx, req.Title, req.Description, fileContent); err != nil {
+	if err := v.videoUpload.Store(ctx, req.Title, req.Description, file); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to upload video")
 	}
 	return echo.NewHTTPError(http.StatusCreated, "video uploaded successfully")
