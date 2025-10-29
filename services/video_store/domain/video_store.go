@@ -21,7 +21,7 @@ func NewVideo(title string, description string, content []byte) *Video {
 }
 
 type VideoUploader interface {
-	Store(ctx context.Context, title string, description string, content []byte) error
+	Store(ctx context.Context, title string, description string, file *multipart.FileHeader) error
 }
 
 type VideoManager struct {
@@ -38,7 +38,7 @@ func NewVideoManager(db Storage, pub MessagePublisher, objectStore ObjectStore) 
 	}
 }
 
-func (v *VideoManager) Store(ctx context.Context, title string, description string, content []byte) error {
+func (v *VideoManager) Store(ctx context.Context, title string, description string, file *multipart.FileHeader) error {
 	id, err := v.db.Persist(ctx, title, description)
 	if err != nil {
 		return err
@@ -47,6 +47,11 @@ func (v *VideoManager) Store(ctx context.Context, title string, description stri
 	testMessage := fmt.Sprintf("ID do Video: %d", id)
 	testContent := []byte(testMessage)
 	v.pub.SendMessage(fmt.Sprintf("%d", id), testContent)
+	videoURL, err := v.ObjectStore.UploadVideo(ctx, file, id)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Video uploaded to: %s\n", videoURL)
 	return nil
 }
 
@@ -59,5 +64,5 @@ type MessagePublisher interface {
 }
 
 type ObjectStore interface {
-	UploadVideo(ctx context.Context, file *multipart.FileHeader) (string, error)
+	UploadVideo(ctx context.Context, file *multipart.FileHeader, id int) (string, error)
 }
