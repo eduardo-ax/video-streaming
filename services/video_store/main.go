@@ -22,21 +22,13 @@ func main() {
 		log.Println("Aviso: Não foi possível carregar o arquivo .env, buscando variáveis de ambiente.")
 	}
 
-	echoServer := echo.New()
-	v1Group := echoServer.Group("/v1")
-
 	pool := infrastructure.NewPool()
 	db := infrastructure.NewDatabase(pool)
 	defer db.Close()
 
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	s3Client := s3.NewFromConfig(cfg)
-
 	bucketName := os.Getenv("S3_BUCKET_NAME")
-	if bucketName == "" {
-		log.Fatal("Fatal Error: S3_BUCKET_NAME environment variable is not set")
-	}
-
 	objectStore := infrastructure.NewObjectStore(s3Client, bucketName)
 
 	pub, err := infrastructure.NewPublisher()
@@ -46,6 +38,9 @@ func main() {
 	defer pub.Close()
 
 	videoUpload := domain.NewVideoManager(db, pub, objectStore)
+
+	echoServer := echo.New()
+	v1Group := echoServer.Group("/v1")
 	handler := api.NewVideoHandler(videoUpload)
 	handler.Register(v1Group)
 
