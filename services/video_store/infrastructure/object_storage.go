@@ -22,7 +22,7 @@ func NewObjectStore(client *s3.Client, bucket string) *ObjectStore {
 	}
 }
 
-func (o *ObjectStore) UploadVideo(ctx context.Context, file *multipart.FileHeader) (string, error) {
+func (o *ObjectStore) UploadVideo(ctx context.Context, file *multipart.FileHeader, id int) (string, error) {
 	src, err := file.Open()
 	if err != nil {
 		return "", err
@@ -34,7 +34,7 @@ func (o *ObjectStore) UploadVideo(ctx context.Context, file *multipart.FileHeade
 		return "", err
 	}
 
-	key := fmt.Sprintf("videos/%s", file.Filename)
+	key := fmt.Sprintf("videos/%s", fmt.Sprintf("%d-", id)+file.Filename)
 	_, err = o.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(o.bucket),
 		Key:         aws.String(key),
@@ -44,6 +44,5 @@ func (o *ObjectStore) UploadVideo(ctx context.Context, file *multipart.FileHeade
 	if err != nil {
 		return "", err
 	}
-
 	return key, nil
 }
