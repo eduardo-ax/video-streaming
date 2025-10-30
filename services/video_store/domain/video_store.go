@@ -7,17 +7,26 @@ import (
 )
 
 type Video struct {
-	Content     []byte
+	Content     *multipart.FileHeader
 	Title       string
 	Description string
 }
 
-func NewVideo(title string, description string, content []byte) *Video {
-	return &Video{
+func NewVideo(title string, description string, content *multipart.FileHeader) (Video, error) {
+
+	if content == nil {
+		return Video{}, fmt.Errorf("video content cannot be nil")
+	}
+
+	if title == "" || description == "" || len(title) > 100 || len(description) > 500 {
+		return Video{}, fmt.Errorf("invalid video data")
+	}
+
+	return Video{
 		Content:     content,
 		Title:       title,
 		Description: description,
-	}
+	}, nil
 }
 
 type VideoUploader interface {
@@ -39,14 +48,17 @@ func NewVideoManager(db Storage, pub MessagePublisher, objectStore ObjectStore) 
 }
 
 func (v *VideoManager) Store(ctx context.Context, title string, description string, file *multipart.FileHeader) error {
-	id, err := v.db.Persist(ctx, title, description)
+	src, err := NewVideo(title, description, file)
+	if err != nil {
+		return err
+	}
+
+	id, err := v.db.Persist(ctx, src.Title, src.Description)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("Video saved with ID: %d\n", id)
-	testMessage := fmt.Sprintf("ID do Video: %d", id)
-	testContent := []byte(testMessage)
-	v.pub.SendMessage(fmt.Sprintf("%d", id), testContent)
+	v.pub.SendMessage(ctx, fmt.Sprintf("%d", id))
 	videoURL, err := v.ObjectStore.UploadVideo(ctx, file, id)
 	if err != nil {
 		return err
@@ -60,7 +72,7 @@ type Storage interface {
 }
 
 type MessagePublisher interface {
-	SendMessage(key string, value []byte) error
+	SendMessage(ctx context.Context, key string) error
 }
 
 type ObjectStore interface {
