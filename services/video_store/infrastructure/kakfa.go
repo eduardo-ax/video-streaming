@@ -1,6 +1,7 @@
 package infrastructure
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/IBM/sarama"
@@ -35,11 +36,10 @@ func NewPublisher() (*Publisher, error) {
 	}, nil
 }
 
-func (p *Publisher) SendMessage(key string, value []byte) error {
+func (p *Publisher) SendMessage(ctx context.Context, key string) error {
 	msg := &sarama.ProducerMessage{
 		Topic: KAFKA_TOPIC,
 		Key:   sarama.StringEncoder(key),
-		Value: sarama.ByteEncoder(value),
 	}
 	_, _, err := p.syncProducer.SendMessage(msg)
 	return err
