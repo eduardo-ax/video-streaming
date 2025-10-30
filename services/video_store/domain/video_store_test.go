@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"errors"
 	"mime/multipart"
 	"testing"
 
@@ -72,9 +73,9 @@ func (m *MockMessagePublisher) SendMessage(ctx context.Context, message string) 
 
 type MockObjectStore struct{ mock.Mock }
 
-func (m *MockObjectStore) UploadVideo(ctx context.Context, file *multipart.FileHeader, id int) (string, error) {
-	args := m.Called(ctx, file)
-	return args.String(0), args.Error(1)
+func (m *MockObjectStore) UploadVideo(ctx context.Context, file *multipart.FileHeader, id int) error {
+	args := m.Called(ctx, file, id)
+	return args.Error(0)
 }
 
 func TestVideoManager_Store(t *testing.T) {
@@ -94,12 +95,45 @@ func TestVideoManager_Store(t *testing.T) {
 			description: "This is a sample video description.",
 			content:     file,
 			setupMocks: func(db *MockStorage, pub *MockMessagePublisher, store *MockObjectStore) {
-				db.On("Persist", mock.Anything, "My Test Video", "Testing Store success").Return(1, nil)
-				pub.On("SendMessage", "1", mock.Anything).Return(nil)
-				store.On("UploadVideo", mock.Anything, file, 1).Return("https://example.com/video.mp4", nil)
+				db.On("Persist", mock.Anything, "Sample Video", "This is a sample video description.").Return(1, nil)
+				pub.On("SendMessage", mock.Anything, "1").Return(nil)
+				store.On("UploadVideo", mock.Anything, file, 1).Return(nil)
 			},
 			expected: true,
 			desc:     "should store video successfully with valid data",
+		},
+		"failed database": {
+			title:       "Sample Video",
+			description: "This is a sample video description.",
+			content:     file,
+			setupMocks: func(db *MockStorage, pub *MockMessagePublisher, store *MockObjectStore) {
+				db.On("Persist", mock.Anything, "Sample Video", "This is a sample video description.").Return(-1, errors.New("failed to persist"))
+			},
+			expected: false,
+			desc:     "should fail to store video when upload fails",
+		},
+		"failed send message": {
+			title:       "Sample Video",
+			description: "This is a sample video description.",
+			content:     file,
+			setupMocks: func(db *MockStorage, pub *MockMessagePublisher, store *MockObjectStore) {
+				db.On("Persist", mock.Anything, "Sample Video", "This is a sample video description.").Return(1, nil)
+				pub.On("SendMessage", mock.Anything, "1").Return(errors.New("failed to send message"))
+			},
+			expected: false,
+			desc:     "should fail to store video when send message to queue fails",
+		},
+		"failed object store": {
+			title:       "Sample Video",
+			description: "This is a sample video description.",
+			content:     file,
+			setupMocks: func(db *MockStorage, pub *MockMessagePublisher, store *MockObjectStore) {
+				db.On("Persist", mock.Anything, "Sample Video", "This is a sample video description.").Return(1, nil)
+				pub.On("SendMessage", mock.Anything, "1").Return(nil)
+				store.On("UploadVideo", mock.Anything, file, 1).Return(errors.New("failed to upload video"))
+			},
+			expected: false,
+			desc:     "should fail to store video when object store upload fails",
 		},
 	}
 
@@ -110,17 +144,14 @@ func TestVideoManager_Store(t *testing.T) {
 			storeMock := new(MockObjectStore)
 
 			tc.setupMocks(dbMock, pubMock, storeMock)
-
 			manager := NewVideoManager(dbMock, pubMock, storeMock)
-
 			err := manager.Store(ctx, tc.title, tc.description, tc.content)
 
 			if tc.expected {
-				assert.Error(t, err)
-			} else {
 				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
 			}
-
 			dbMock.AssertExpectations(t)
 			pubMock.AssertExpectations(t)
 			storeMock.AssertExpectations(t)
