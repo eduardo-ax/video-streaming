@@ -22,16 +22,16 @@ func NewObjectStore(client *s3.Client, bucket string) *ObjectStore {
 	}
 }
 
-func (o *ObjectStore) UploadVideo(ctx context.Context, file *multipart.FileHeader, id int) (string, error) {
+func (o *ObjectStore) UploadVideo(ctx context.Context, file *multipart.FileHeader, id int) error {
 	src, err := file.Open()
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer src.Close()
 
 	buf := new(bytes.Buffer)
 	if _, err := buf.ReadFrom(src); err != nil {
-		return "", err
+		return err
 	}
 
 	key := fmt.Sprintf("videos/%s", fmt.Sprintf("%d-", id)+file.Filename)
@@ -42,7 +42,7 @@ func (o *ObjectStore) UploadVideo(ctx context.Context, file *multipart.FileHeade
 		ContentType: aws.String(file.Header.Get("Content-Type")),
 	})
 	if err != nil {
-		return "", err
+		return err
 	}
-	return key, nil
+	return nil
 }
