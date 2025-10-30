@@ -57,13 +57,17 @@ func (v *VideoManager) Store(ctx context.Context, title string, description stri
 	if err != nil {
 		return err
 	}
+
 	fmt.Printf("Video saved with ID: %d\n", id)
-	v.pub.SendMessage(ctx, fmt.Sprintf("%d", id))
-	videoURL, err := v.ObjectStore.UploadVideo(ctx, file, id)
+	err = v.pub.SendMessage(ctx, fmt.Sprintf("%d", id))
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Video uploaded to: %s\n", videoURL)
+
+	err = v.ObjectStore.UploadVideo(ctx, file, id)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -76,5 +80,5 @@ type MessagePublisher interface {
 }
 
 type ObjectStore interface {
-	UploadVideo(ctx context.Context, file *multipart.FileHeader, id int) (string, error)
+	UploadVideo(ctx context.Context, file *multipart.FileHeader, id int) error
 }
