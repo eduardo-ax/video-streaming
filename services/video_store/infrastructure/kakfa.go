@@ -36,10 +36,10 @@ func NewPublisher() (*Publisher, error) {
 	}, nil
 }
 
-func (p *Publisher) SendMessage(ctx context.Context, key string) error {
+func (p *Publisher) SendMessage(ctx context.Context, id string, filename string) error {
 	msg := &sarama.ProducerMessage{
 		Topic: KAFKA_TOPIC,
-		Key:   sarama.StringEncoder(key),
+		Value: sarama.StringEncoder(fmt.Sprintf("%s/%s", id, filename)),
 	}
 	_, _, err := p.syncProducer.SendMessage(msg)
 	return err
