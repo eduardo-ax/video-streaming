@@ -20,9 +20,15 @@ func NewVideoTranscoder(db Storage, queue MessageQueue, objectStore ObjectStore)
 	}
 }
 
-func TranscodeVideo(videoID string) error {
-	fmt.Println("Transcoding video id:", videoID)
-	// lógica real de transcoding ficaria aqui
+func (v *VideoTranscoder) TranscodeVideo(ctx context.Context, content string) error {
+
+	id := 1
+	fmt.Println("Transcoding video id:", content)
+	_,err := v.ObjectStore.DownloadFile(ctx, id, content)
+	if err != nil {
+		fmt.Println("Error Download")
+		return err
+	}
 	return nil
 }
 
@@ -32,7 +38,7 @@ type Storage interface {
 
 type MessageQueue interface {
 	SendMessage(ctx context.Context, key string) error
-	ReceiveMessage(ctx context.Context) (string, error)
+	ReceiveMessage(ctx context.Context, handler func(msg string)) error
 }
 
 type ObjectStore interface {
