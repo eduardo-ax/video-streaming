@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	KAFKA_BROKER_URL = "localhost:9092"
+	KAFKA_BROKER_URL = "kafka:9092"
 	KAFKA_TOPIC      = "full_video"
 )
 
@@ -42,5 +42,8 @@ func (p *Publisher) SendMessage(ctx context.Context, id string, filename string)
 		Value: sarama.StringEncoder(fmt.Sprintf("%s/%s", id, filename)),
 	}
 	_, _, err := p.syncProducer.SendMessage(msg)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to send message: %w", err)
+	}
+	return nil
 }

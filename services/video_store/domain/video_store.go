@@ -50,21 +50,24 @@ func NewVideoManager(db Storage, pub MessagePublisher, objectStore ObjectStore) 
 func (v *VideoManager) Store(ctx context.Context, title string, description string, file *multipart.FileHeader) error {
 	src, err := NewVideo(title, description, file)
 	if err != nil {
+		fmt.Printf("Error creating video entity: %v", err)
 		return err
 	}
 
 	id, err := v.db.Persist(ctx, src.Title, src.Description)
 	if err != nil {
+		fmt.Printf("Error persisting video metadata: %v", err)
+		return err
+	}
+
+	err = v.objectStore.UploadVideo(ctx, file, id)
+	if err != nil {
+		fmt.Printf("Error uploading video to object store: %v", err)	
 		return err
 	}
 
 	fmt.Printf("Video saved with ID: %d\n", id)
 	err = v.pub.SendMessage(ctx, fmt.Sprintf("%d", id), file.Filename)
-	if err != nil {
-		return err
-	}
-
-	err = v.objectStore.UploadVideo(ctx, file, id)
 	if err != nil {
 		return err
 	}

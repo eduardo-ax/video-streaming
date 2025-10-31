@@ -8,7 +8,7 @@ import (
 )
 
 func NewPool() *pgxpool.Pool {
-	dbPool, err := pgxpool.New(context.Background(), "postgres://db_user:db_password@localhost:5432/video_store_db?sslmode=disable")
+	dbPool, err := pgxpool.New(context.Background(), "postgres://db_user:db_password@postgres:5432/video_store_db?sslmode=disable")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -32,6 +32,7 @@ func (db *Database) Close() {
 func (db *Database) Persist(ctx context.Context, title string, description string) (int, error) {
 	var id int
 	err := db.pool.QueryRow(ctx, "INSERT INTO videos (title, description) VALUES ($1, $2) RETURNING id", title, description).Scan(&id)
+
 	if err != nil {
 		return -1, err
 	}
