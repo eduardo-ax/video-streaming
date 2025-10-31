@@ -19,7 +19,7 @@ func main() {
 	err := godotenv.Load()
 
 	if err != nil {
-		log.Println("Aviso: Não foi possível carregar o arquivo .env, buscando variáveis de ambiente.")
+		log.Println("Warning: Could not load .env file, falling back to environment variables.")
 	}
 
 	pool := infrastructure.NewPool()

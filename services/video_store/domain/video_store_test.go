@@ -66,7 +66,7 @@ func (m *MockStorage) Persist(ctx context.Context, title string, description str
 
 type MockMessagePublisher struct{ mock.Mock }
 
-func (m *MockMessagePublisher) SendMessage(ctx context.Context, message string) error {
+func (m *MockMessagePublisher) SendMessage(ctx context.Context, message string, filename string) error {
 	args := m.Called(ctx, message)
 	return args.Error(0)
 }
