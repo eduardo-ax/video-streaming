@@ -36,14 +36,14 @@ type VideoUploader interface {
 type VideoManager struct {
 	db          Storage
 	pub         MessagePublisher
-	ObjectStore ObjectStore
+	objectStore ObjectStore
 }
 
 func NewVideoManager(db Storage, pub MessagePublisher, objectStore ObjectStore) *VideoManager {
 	return &VideoManager{
 		db:          db,
 		pub:         pub,
-		ObjectStore: objectStore,
+		objectStore: objectStore,
 	}
 }
 
@@ -59,12 +59,12 @@ func (v *VideoManager) Store(ctx context.Context, title string, description stri
 	}
 
 	fmt.Printf("Video saved with ID: %d\n", id)
-	err = v.pub.SendMessage(ctx, fmt.Sprintf("%d", id))
+	err = v.pub.SendMessage(ctx, fmt.Sprintf("%d", id), file.Filename)
 	if err != nil {
 		return err
 	}
 
-	err = v.ObjectStore.UploadVideo(ctx, file, id)
+	err = v.objectStore.UploadVideo(ctx, file, id)
 	if err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ type Storage interface {
 }
 
 type MessagePublisher interface {
-	SendMessage(ctx context.Context, key string) error
+	SendMessage(ctx context.Context, id string, filename string) error
 }
 
 type ObjectStore interface {
