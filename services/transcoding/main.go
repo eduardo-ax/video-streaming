@@ -3,62 +3,27 @@ package main
 import (
 	"context"
 	"log"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
+
+	"github.com/eduardo-ax/video-streaming/services/transcoding/domain"
+	"github.com/eduardo-ax/video-streaming/services/transcoding/infrastructure"
 )
 
 func main() {
-	// Create a context that will be canceled on SIGTERM/SIGINT
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Setup signal handling
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	// Initialize infrastructure
-	dbPool := infrastructure.NewPool()
-	defer dbPool.Close()
-
-	db := infrastructure.NewDatabase(dbPool)
-
-	consumer, err := infrastructure.NewConsumer()
+	producer, err := infrastructure.NewProducer()
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer consumer.Close()
+	defer producer.Close()
 
-	publisher, err := infrastructure.NewPublisher()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer publisher.Close()
+	ctx := context.Background()
 
-	// Start consumer in a goroutine
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				log.Println("Shutting down consumer...")
-				return
-			default:
-				if err := consumeMessage(ctx, consumer, db, publisher); err != nil {
-					log.Printf("Error consuming message: %v", err)
-					// Add delay to prevent CPU spinning on repeated errors
-					time.Sleep(time.Second)
-				}
-			}
+	err = producer.ReceiveMessage(ctx, func(msg string) {
+		// quando chega mensagem do Kafka, chama o domínio
+		if err := domain.TranscodeVideo(msg); err != nil {
+			log.Printf("Erro ao transcodificar: %v", err)
 		}
-	}()
-
-	// Wait for shutdown signal
-	<-sigChan
-	log.Println("Received shutdown signal")
-	cancel() // This will trigger graceful shutdown
-
-	// Give some time for ongoing operations to complete
-	time.Sleep(time.Second * 5)
-	log.Println("Service stopped")
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 }
