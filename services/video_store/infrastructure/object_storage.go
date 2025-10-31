@@ -34,7 +34,7 @@ func (o *ObjectStore) UploadVideo(ctx context.Context, file *multipart.FileHeade
 		return err
 	}
 
-	key := fmt.Sprintf("videos/%s", fmt.Sprintf("%d-", id)+file.Filename)
+	key := fmt.Sprintf("videos/%s/%s", fmt.Sprintf("%d", id), file.Filename)
 	_, err = o.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(o.bucket),
 		Key:         aws.String(key),
