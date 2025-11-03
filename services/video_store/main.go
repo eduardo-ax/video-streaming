@@ -12,6 +12,7 @@ import (
 	"github.com/eduardo-ax/video-streaming/services/video_store/infrastructure"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo"
+	"github.com/labstack/echo/middleware"
 )
 
 func main() {
@@ -40,6 +41,7 @@ func main() {
 	videoUpload := domain.NewVideoManager(db, pub, objectStore)
 
 	echoServer := echo.New()
+	echoServer.Use(middleware.CORS())
 	v1Group := echoServer.Group("/v1")
 	handler := api.NewVideoHandler(videoUpload)
 	handler.Register(v1Group)
