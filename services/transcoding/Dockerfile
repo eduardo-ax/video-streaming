@@ -9,6 +9,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/video-store ./main.go
 
 FROM alpine:3.18
+RUN apk add --no-cache ffmpeg ca-certificates && update-ca-certificates
 RUN apk add --no-cache ca-certificates && update-ca-certificates || true
 
 WORKDIR /app
