@@ -45,7 +45,7 @@ func (p *Publisher) SendMessage(ctx context.Context, key string) error {
 	return err
 }
 
-func (p *Publisher) ReceiveMessage(ctx context.Context, handler func(msg string)) error {
+func (p *Publisher) ReceiveMessage(ctx context.Context, handler func(id string, msg string)) error {
 	config := sarama.NewConfig()
 	config.Version = sarama.V3_0_0_0
 	config.Consumer.Return.Errors = true
@@ -68,7 +68,8 @@ func (p *Publisher) ReceiveMessage(ctx context.Context, handler func(msg string)
 		select {
 		case msg := <-partitionConsumer.Messages():
 			fmt.Printf("Message received: %s\n", string(msg.Value))
-			handler(string(msg.Value))
+
+			handler(string(msg.Key), string(msg.Value))
 		case err := <-partitionConsumer.Errors():
 			fmt.Println("Consumer error:", err)
 		case <-ctx.Done():
