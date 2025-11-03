@@ -1,6 +1,7 @@
 package api
 
 import (
+	"io"
 	"net/http"
 
 	"github.com/eduardo-ax/video-streaming/services/video_store/domain"
@@ -24,6 +25,7 @@ func NewVideoHandler(videoUpload domain.VideoUploader) *UploadHandler {
 
 func (v *UploadHandler) Register(e *echo.Group) {
 	e.POST("/videos", v.HandleVideoUpload)
+	e.GET("/videos/:id/:filename", v.HandleVideoStreaming)
 }
 
 func (v *UploadHandler) HandleVideoUpload(c echo.Context) error {
@@ -43,4 +45,22 @@ func (v *UploadHandler) HandleVideoUpload(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to upload video")
 	}
 	return echo.NewHTTPError(http.StatusCreated, "video uploaded successfully")
+}
+
+func (v *UploadHandler) HandleVideoStreaming(c echo.Context) error {
+	ctx := c.Request().Context()
+	id := c.Param("id")
+	filename := c.Param("filename")
+	data, contentType, err := v.videoUpload.GetStream(ctx, id, filename)
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusNotFound, "file not found")
+	}
+
+	c.Response().Header().Set("Content-Type", contentType)
+	_, err = io.Copy(c.Response().Writer, data)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to stream video")
+	}
+	return nil
 }
