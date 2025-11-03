@@ -33,8 +33,8 @@ func main() {
 	ctx := context.Background()
 	videoTranscoder := domain.NewVideoTranscoder(db, producer, objectStore)
 
-	err = producer.ReceiveMessage(ctx, func(msg string) {
-		if err := videoTranscoder.TranscodeVideo(ctx, msg); err != nil {
+	err = producer.ReceiveMessage(ctx, func(id string, msg string) {
+		if err := videoTranscoder.TranscodeVideo(ctx, id, msg); err != nil {
 			log.Printf("transcoding error %v", err)
 		}
 	})
