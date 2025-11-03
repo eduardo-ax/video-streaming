@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"errors"
+	"io"
 	"mime/multipart"
 	"testing"
 
@@ -76,6 +77,11 @@ type MockObjectStore struct{ mock.Mock }
 func (m *MockObjectStore) UploadVideo(ctx context.Context, file *multipart.FileHeader, id int) error {
 	args := m.Called(ctx, file, id)
 	return args.Error(0)
+}
+
+func (m *MockObjectStore) Download(ctx context.Context, key string) (io.ReadCloser, string, error) {
+	args := m.Called(ctx, key)
+	return args.Get(0).(io.ReadCloser), args.Get(1).(string), args.Error(0)
 }
 
 func TestVideoManager_Store(t *testing.T) {

@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"fmt"
+	"io"
 	"mime/multipart"
 )
 
@@ -31,6 +32,7 @@ func NewVideo(title string, description string, content *multipart.FileHeader) (
 
 type VideoUploader interface {
 	Store(ctx context.Context, title string, description string, file *multipart.FileHeader) error
+	GetStream(ctx context.Context, id string, filename string) (io.ReadCloser, string, error)
 }
 
 type VideoManager struct {
@@ -62,7 +64,7 @@ func (v *VideoManager) Store(ctx context.Context, title string, description stri
 
 	err = v.objectStore.UploadVideo(ctx, file, id)
 	if err != nil {
-		fmt.Printf("Error uploading video to object store: %v", err)	
+		fmt.Printf("Error uploading video to object store: %v", err)
 		return err
 	}
 
@@ -72,6 +74,11 @@ func (v *VideoManager) Store(ctx context.Context, title string, description stri
 		return err
 	}
 	return nil
+}
+
+func (v *VideoManager) GetStream(ctx context.Context, id string, filename string) (io.ReadCloser, string, error) {
+	key := fmt.Sprintf("videos/%s/%s", id, filename)
+	return v.objectStore.Download(ctx, key)
 }
 
 type Storage interface {
@@ -84,4 +91,5 @@ type MessagePublisher interface {
 
 type ObjectStore interface {
 	UploadVideo(ctx context.Context, file *multipart.FileHeader, id int) error
+	Download(ctx context.Context, key string) (io.ReadCloser, string, error)
 }

@@ -39,6 +39,7 @@ func NewPublisher() (*Publisher, error) {
 func (p *Publisher) SendMessage(ctx context.Context, id string, filename string) error {
 	msg := &sarama.ProducerMessage{
 		Topic: KAFKA_TOPIC,
+		Key:   sarama.StringEncoder(id),
 		Value: sarama.StringEncoder(fmt.Sprintf("%s/%s", id, filename)),
 	}
 	_, _, err := p.syncProducer.SendMessage(msg)
