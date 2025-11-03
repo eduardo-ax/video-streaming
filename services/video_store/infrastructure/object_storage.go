@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"mime/multipart"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -45,4 +46,21 @@ func (o *ObjectStore) UploadVideo(ctx context.Context, file *multipart.FileHeade
 		return err
 	}
 	return nil
+}
+
+func (o *ObjectStore) Download(ctx context.Context, key string) (io.ReadCloser, string, error) {
+	out, err := o.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(o.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, "", err
+	}
+
+	contentType := "application/octet-stream"
+	if out.ContentType != nil {
+		contentType = *out.ContentType
+	}
+
+	return out.Body, contentType, nil
 }
