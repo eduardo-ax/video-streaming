@@ -9,7 +9,7 @@ import (
 
 const (
 	KAFKA_BROKER_URL = "kafka:9092"
-	KAFKA_TOPIC      = "full_video"
+	KAFKA_TOPIC      = "transcoding"
 )
 
 type Publisher struct {

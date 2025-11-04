@@ -38,6 +38,7 @@ func (v *UploadHandler) HandleVideoUpload(c echo.Context) error {
 
 	file, err := c.FormFile("file")
 	if err != nil {
+
 		return echo.NewHTTPError(http.StatusBadRequest, "file is required")
 	}
 
@@ -56,7 +57,7 @@ func (v *UploadHandler) HandleVideoStreaming(c echo.Context) error {
 		return echo.NewHTTPError(
 			http.StatusNotFound, "file not found")
 	}
-
+	defer data.Close()
 	c.Response().Header().Set("Content-Type", contentType)
 	_, err = io.Copy(c.Response().Writer, data)
 	if err != nil {
