@@ -62,7 +62,7 @@ services:
       KAFKA_BROKERS: "kafka:9092"
       VIDEO_STORAGE_PATH: "/var/videos"
     volumes:
-      - C:/Users/Eduardo/Videos/docker_volume_video:/var/videos
+      - C:/Users/eduar/Videos/video_worker:/var/videos
     ports:
       - "8081:8080"
     restart: unless-stopped
