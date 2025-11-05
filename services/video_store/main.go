@@ -45,7 +45,6 @@ func main() {
 
 	reg := prometheus.NewRegistry()
 	m := metrics.NewMetrics(reg)
-	m.DevicesSet(5)
 
 	echoServer := echo.New()
 	echoServer.Use(middleware.CORS())
@@ -53,7 +52,7 @@ func main() {
 	echoServer.GET("/metrics", echo.WrapHandler(promhttp.HandlerFor(reg, promhttp.HandlerOpts{})))
 
 	v1Group := echoServer.Group("/v1")
-	handler := api.NewVideoHandler(videoUpload)
+	handler := api.NewVideoHandler(videoUpload, m)
 	handler.Register(v1Group)
 
 	echoServer.Logger.Fatal(echoServer.Start(":8080"))
