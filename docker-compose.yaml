@@ -51,6 +51,14 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./services/video_store/observability/prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - video_store
   transcoding:
     build:
       context: ./services/transcoding

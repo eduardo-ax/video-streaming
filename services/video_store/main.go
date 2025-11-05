@@ -10,9 +10,12 @@ import (
 	"github.com/eduardo-ax/video-streaming/services/video_store/api"
 	"github.com/eduardo-ax/video-streaming/services/video_store/domain"
 	"github.com/eduardo-ax/video-streaming/services/video_store/infrastructure"
+	metrics "github.com/eduardo-ax/video-streaming/services/video_store/observability"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -40,8 +43,15 @@ func main() {
 
 	videoUpload := domain.NewVideoManager(db, pub, objectStore)
 
+	reg := prometheus.NewRegistry()
+	m := metrics.NewMetrics(reg)
+	m.DevicesSet(5)
+
 	echoServer := echo.New()
 	echoServer.Use(middleware.CORS())
+
+	echoServer.GET("/metrics", echo.WrapHandler(promhttp.HandlerFor(reg, promhttp.HandlerOpts{})))
+
 	v1Group := echoServer.Group("/v1")
 	handler := api.NewVideoHandler(videoUpload)
 	handler.Register(v1Group)
