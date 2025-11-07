@@ -3,14 +3,19 @@ package infrastructure
 import (
 	"context"
 	"log"
+	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func NewPool() *pgxpool.Pool {
-	dbPool, err := pgxpool.New(context.Background(), "postgres://db_user:db_password@postgres:5432/video_store_db?sslmode=disable")
+	dbURL := os.Getenv("VIDEOS_DATABASE_URL")
+	if dbURL == "" {
+		log.Fatal("Error database host")
+	}
+	dbPool, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("erro conected database %v", err)
 	}
 	return dbPool
 }
