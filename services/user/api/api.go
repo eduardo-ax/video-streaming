@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/eduardo-ax/video-streaming/services/user/domain"
@@ -11,6 +12,11 @@ type UserRequest struct {
 	Name     string `json:"name"`
 	Email    string `json:"email"`
 	Plan     int8   `json:"plan"`
+	Password string `json:"password"`
+}
+
+type LoginUserRequest struct {
+	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
@@ -26,6 +32,7 @@ func NewUserHander(user domain.UserInterface) *UserHandler {
 
 func (u *UserHandler) Register(e *echo.Group) {
 	e.POST("/user", u.CreateUserHandler)
+	e.POST("/login", u.LoginHandler)
 }
 
 func (u *UserHandler) CreateUserHandler(c echo.Context) error {
@@ -36,11 +43,29 @@ func (u *UserHandler) CreateUserHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request payload")
 	}
 
-	err := u.user.Created(ctx, user.Name, user.Email, user.Plan, user.Password)
+	err := u.user.CreateUser(ctx, user.Name, user.Email, user.Plan, user.Password)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid request payload")
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Create User error: %s", err))
 	}
 
 	return echo.NewHTTPError(http.StatusCreated, "user created successfully")
 
+}
+
+func (u *UserHandler) LoginHandler(c echo.Context) error {
+	ctx := c.Request().Context()
+	userLogin := &LoginUserRequest{}
+
+	if err := c.Bind(userLogin); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request payload")
+	}
+
+	userID, err := u.user.UserLogin(ctx, userLogin.Email, userLogin.Password)
+
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "incorrect credentials")
+	}
+
+	fmt.Println(userID)
+	return echo.NewHTTPError(http.StatusOK, "login successfully")
 }
