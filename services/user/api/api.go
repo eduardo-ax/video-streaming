@@ -60,12 +60,12 @@ func (u *UserHandler) LoginHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request payload")
 	}
 
-	userID, err := u.user.UserLogin(ctx, userLogin.Email, userLogin.Password)
+	userClaims, err := u.user.UserLogin(ctx, userLogin.Email, userLogin.Password)
 
 	if err != nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "incorrect credentials")
 	}
 
-	fmt.Println(userID)
+	fmt.Println(userClaims)
 	return echo.NewHTTPError(http.StatusOK, "login successfully")
 }
