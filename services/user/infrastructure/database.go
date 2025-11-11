@@ -55,14 +55,51 @@ func (db *Database) Persist(ctx context.Context, name string, email string, pass
 }
 
 func (db *Database) GetUser(ctx context.Context, email string) (*domain.UserAuthData, error) {
-
 	user := &domain.UserAuthData{}
 	err := db.pool.QueryRow(ctx, "SELECT id,password,plan FROM users WHERE email = $1", email).Scan(&user.ID, &user.Password, &user.Plan)
-
 	if err != nil {
 		return user, fmt.Errorf("user doesn't exist")
 	}
 
 	return user, nil
 
+}
+
+func (db *Database) CreateSession(ctx context.Context, session *domain.Session) (*domain.Session, error) {
+	_, err := db.pool.Exec(ctx, "INSERT INTO sessions (id, email, refresh_token, is_revoked, expires_at) VALUES ($1,$2,$3,$4,$5)", session.ID, session.Email, session.RefreshToken, session.IsRevoked, session.ExpiresAt)
+	if err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+func (db *Database) GetSession(ctx context.Context, id string) (*domain.Session, error) {
+	var s domain.Session
+	err := db.pool.QueryRow(ctx, `SELECT id, email, refresh_token, is_revoked, expires_at FROM sessions WHERE id = $1`, id).Scan(&s.ID, &s.Email, &s.RefreshToken, &s.IsRevoked, &s.ExpiresAt)
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+func (db *Database) RevokeSession(ctx context.Context, id string) error {
+	_, err := db.pool.Exec(ctx, "UPDATE sessions SET is_revoked = true WHERE id = $1", id)
+	if err != nil {
+		return fmt.Errorf("error revoking session: %w", err)
+	}
+	return nil
+}
+
+func (db *Database) DeleteSession(ctx context.Context, id string) error {
+	query, err := db.pool.Exec(ctx, "DELETE FROM sessions WHERE id=$1", id)
+
+	if err != nil {
+		return fmt.Errorf("error deleting session: %w", err)
+	}
+
+	if query.RowsAffected() == 0 {
+		return fmt.Errorf("session doesn't exist")
+	}
+
+	return nil
 }
