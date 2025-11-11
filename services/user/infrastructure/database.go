@@ -57,7 +57,7 @@ func (db *Database) Persist(ctx context.Context, name string, email string, pass
 func (db *Database) GetUser(ctx context.Context, email string) (*domain.UserAuthData, error) {
 
 	user := &domain.UserAuthData{}
-	err := db.pool.QueryRow(ctx, "SELECT id,password FROM users WHERE email = $1", email).Scan(&user.ID, &user.Password)
+	err := db.pool.QueryRow(ctx, "SELECT id,password,plan FROM users WHERE email = $1", email).Scan(&user.ID, &user.Password, &user.Plan)
 
 	if err != nil {
 		return user, fmt.Errorf("user doesn't exist")
