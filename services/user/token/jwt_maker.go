@@ -16,8 +16,8 @@ func NewJWTMaker(secretKey string) *JWTMaker {
 	return &JWTMaker{secretKey: secretKey}
 }
 
-func (m *JWTMaker) CreateToken(id string, email string, plan int8, duration time.Duration) (string, *domain.UserClaims, error) {
-	claims, err := NewUserClaims(id, email, plan, duration)
+func (m *JWTMaker) CreateToken(id string, email string, plan int8, sessionID string, duration time.Duration) (string, *domain.UserClaims, error) {
+	claims, err := NewUserClaims(id, email, plan, sessionID, duration)
 
 	if err != nil {
 		return "", nil, err
@@ -48,9 +48,5 @@ func (m JWTMaker) VerifyToken(tokenStr string) (*domain.UserClaims, error) {
 	if !ok {
 		return nil, fmt.Errorf("invalid token claims")
 	}
-
-	fmt.Print("CLaims do verify: ")
-	fmt.Println(claims)
-
 	return claims, nil
 }

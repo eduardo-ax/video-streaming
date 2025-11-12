@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type Storage interface {
 	Persist(ctx context.Context, name string, email string, password string, plan int8) (string, error)
+	DeleteUser(ctx context.Context, id string) error
 	GetUser(ctx context.Context, email string) (*UserAuthData, error)
 	CreateSession(ctx context.Context, session *Session) (*Session, error)
 	GetSession(ctx context.Context, id string) (*Session, error)
@@ -18,12 +20,13 @@ type Storage interface {
 }
 
 type TokenInterface interface {
-	CreateToken(id string, email string, plan int8, duration time.Duration) (string, *UserClaims, error)
+	CreateToken(id string, email string, plan int8, sessionID string, duration time.Duration) (string, *UserClaims, error)
 	VerifyToken(tokenStr string) (*UserClaims, error)
 }
 
 type UserInterface interface {
 	CreateUser(ctx context.Context, name string, email string, plan int8, pass string) error
+	DeleteUser(ctx context.Context, id string) error
 	UserLogin(ctx context.Context, email string, password string) (*LoginUserRes, error)
 	UserLogout(ctx context.Context, id string) error
 	RenewAccessToken(ctx context.Context, refreshToken string) (*RenewAccessTokenRes, error)
@@ -49,9 +52,17 @@ func (u *UserManager) CreateUser(ctx context.Context, name string, email string,
 	return nil
 }
 
+func (u *UserManager) DeleteUser(ctx context.Context, id string) error {
+	err := u.db.DeleteUser(ctx, id)
+	if err != nil {
+		return fmt.Errorf("logout error %w", err)
+	}
+	return nil
+}
+
 func (u *UserManager) UserLogin(ctx context.Context, email string, password string) (*LoginUserRes, error) {
 	user, err := u.db.GetUser(ctx, email)
-
+	sessionID := uuid.New().String()
 	if err != nil {
 		return nil, err
 	}
@@ -59,12 +70,12 @@ func (u *UserManager) UserLogin(ctx context.Context, email string, password stri
 		return nil, fmt.Errorf("password incorrect")
 	}
 
-	acessToken, accessClaims, err := u.token.CreateToken(user.ID, email, user.Plan, 15*time.Minute)
+	acessToken, accessClaims, err := u.token.CreateToken(user.ID, email, user.Plan, sessionID, 15*time.Minute)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token: %w", err)
 	}
 
-	refreshToken, refreshClaim, err := u.token.CreateToken(user.ID, email, user.Plan, 24*time.Hour)
+	refreshToken, refreshClaim, err := u.token.CreateToken(user.ID, email, user.Plan, sessionID, 24*time.Hour)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create refresh token: %w", err)
 	}
@@ -121,8 +132,8 @@ func (u *UserManager) RenewAccessToken(ctx context.Context, refreshToken string)
 	if session.Email != refreshClaims.Email {
 		return nil, fmt.Errorf("invalid session")
 	}
-
-	acessToken, accessClaims, err := u.token.CreateToken(refreshClaims.ID, refreshClaims.Email, refreshClaims.Plan, 15*time.Minute)
+	sessionID := refreshClaims.RegisteredClaims.ID
+	acessToken, accessClaims, err := u.token.CreateToken(refreshClaims.ID, refreshClaims.Email, refreshClaims.Plan, sessionID, 15*time.Minute)
 
 	if err != nil {
 		return nil, fmt.Errorf("error creating token: %w", err)

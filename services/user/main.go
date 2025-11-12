@@ -40,7 +40,7 @@ func main() {
 
 	echoServer := echo.New()
 	v1Group := echoServer.Group("/v1")
-	handler.Register(v1Group)
+	handler.Register(v1Group, token)
 	echoServer.Logger.Fatal(echoServer.Start(":8080"))
 
 }

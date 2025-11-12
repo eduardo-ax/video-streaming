@@ -54,6 +54,18 @@ func (db *Database) Persist(ctx context.Context, name string, email string, pass
 	return id, nil
 }
 
+func (db *Database) DeleteUser(ctx context.Context, id string) error {
+	query, err := db.pool.Exec(ctx, "DELETE FROM users WHERE id=$1", id)
+
+	if err != nil {
+		return fmt.Errorf("error deleting user: %w", err)
+	}
+	if query.RowsAffected() == 0 {
+		return fmt.Errorf("user doesn't exist")
+	}
+	return nil
+}
+
 func (db *Database) GetUser(ctx context.Context, email string) (*domain.UserAuthData, error) {
 	user := &domain.UserAuthData{}
 	err := db.pool.QueryRow(ctx, "SELECT id,password,plan FROM users WHERE email = $1", email).Scan(&user.ID, &user.Password, &user.Plan)
