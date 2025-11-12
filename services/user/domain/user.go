@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"fmt"
+	"net/mail"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +13,7 @@ import (
 type Storage interface {
 	Persist(ctx context.Context, name string, email string, password string, plan int8) (string, error)
 	DeleteUser(ctx context.Context, id string) error
+	UpdateUser(ctx context.Context, id string, name string, email *string, password *string) error
 	GetUser(ctx context.Context, email string) (*UserAuthData, error)
 	CreateSession(ctx context.Context, session *Session) (*Session, error)
 	GetSession(ctx context.Context, id string) (*Session, error)
@@ -27,6 +29,7 @@ type TokenInterface interface {
 type UserInterface interface {
 	CreateUser(ctx context.Context, name string, email string, plan int8, pass string) error
 	DeleteUser(ctx context.Context, id string) error
+	UpdateUser(ctx context.Context, id string, name string, email *string, password *string) error
 	UserLogin(ctx context.Context, email string, password string) (*LoginUserRes, error)
 	UserLogout(ctx context.Context, id string) error
 	RenewAccessToken(ctx context.Context, refreshToken string) (*RenewAccessTokenRes, error)
@@ -38,6 +41,34 @@ func NewUserManager(db Storage, token TokenInterface) *UserManager {
 		db:    db,
 		token: token,
 	}
+}
+
+func ValidateUpdateUserFields(name string, email *string, password *string) error {
+	if name != "" {
+		if len(name) < 4 || len(name) > 20 {
+			return fmt.Errorf("name invalid format")
+		}
+	}
+
+	if email != nil {
+		emailValue := *email
+		if emailValue == "" {
+			return fmt.Errorf("email cannot be empty when provided")
+		}
+		_, err := mail.ParseAddress(emailValue)
+		if err != nil {
+			return fmt.Errorf("invalid email format")
+		}
+	}
+
+	if password != nil {
+		passwordValue := *password
+		if len(passwordValue) < 8 { // Exemplo de regra
+			return fmt.Errorf("password must be at least 8 characters long")
+		}
+	}
+
+	return nil
 }
 
 func (u *UserManager) CreateUser(ctx context.Context, name string, email string, plan int8, password string) error {
@@ -55,7 +86,30 @@ func (u *UserManager) CreateUser(ctx context.Context, name string, email string,
 func (u *UserManager) DeleteUser(ctx context.Context, id string) error {
 	err := u.db.DeleteUser(ctx, id)
 	if err != nil {
-		return fmt.Errorf("logout error %w", err)
+		return fmt.Errorf("delete user error %w", err)
+	}
+	return nil
+}
+
+func (u *UserManager) UpdateUser(ctx context.Context, id string, name string, email *string, password *string) error {
+	err := ValidateUpdateUserFields(name, email, password)
+	if err != nil {
+		return fmt.Errorf("invalid credentials: %w", err)
+	}
+
+	var newPasswordHash *string
+	if password != nil {
+		rawPassword := *password
+		hash, err := HashPassword(rawPassword)
+		if err != nil {
+			return fmt.Errorf("failed to hash password: %w", err)
+		}
+		newPasswordHash = &hash
+	}
+
+	err = u.db.UpdateUser(ctx, id, name, email, newPasswordHash)
+	if err != nil {
+		return fmt.Errorf("update user error %w", err)
 	}
 	return nil
 }

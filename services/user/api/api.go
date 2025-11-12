@@ -23,17 +23,23 @@ type LoginUserRequest struct {
 	Password string `json:"password"`
 }
 
-type RenewAccessTokenReq struct {
-	RefreshToken string `json:"refresh_token"`
+type UpdateUserReq struct {
+	Name     string  `json:"name,omitempty"`
+	Email    *string `json:"email,omitempty"`
+	Password *string `json:"password,omitempty"`
 }
 
-type UserHandler struct {
-	user domain.UserInterface
+type RenewAccessTokenReq struct {
+	RefreshToken string `json:"refresh_token"`
 }
 
 type RenewAccessTokenRes struct {
 	AccessToken         string    `json:"access_token"`
 	AcessTokenExpiresAt time.Time `json:"acess_token_expires_at"`
+}
+
+type UserHandler struct {
+	user domain.UserInterface
 }
 
 func NewUserHander(user domain.UserInterface) *UserHandler {
@@ -63,7 +69,6 @@ func (u *UserHandler) AuthMiddleware(tokenMaker *token.JWTMaker) echo.Middleware
 				return echo.NewHTTPError(http.StatusUnauthorized, "Invalid or expired access token")
 			}
 			c.Set(ContextUserID, claims.ID)
-
 			return next(c)
 		}
 	}
@@ -96,7 +101,6 @@ func (u *UserHandler) CreateUserHandler(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Create User error: %s", err))
 	}
-
 	return echo.NewHTTPError(http.StatusCreated, "user created successfully")
 }
 
@@ -104,13 +108,11 @@ func (u *UserHandler) DeleteUserHandler(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	loggedInUserID, ok := c.Get(ContextUserID).(string)
-	if !ok {
-		return echo.NewHTTPError(http.StatusInternalServerError, "User ID not available in context")
-
+	if !ok || loggedInUserID == "" {
+		return echo.NewHTTPError(http.StatusUnauthorized, "User ID not available in context")
 	}
 
 	err := u.user.DeleteUser(ctx, loggedInUserID)
-
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("Error deleting user: %s", err))
 	}
@@ -119,19 +121,28 @@ func (u *UserHandler) DeleteUserHandler(c echo.Context) error {
 
 func (u *UserHandler) UpdateUserHandler(c echo.Context) error {
 	ctx := c.Request().Context()
-	user := &UserRequest{}
 
-	if err := c.Bind(user); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid request payload")
+	loggedInUserID, ok := c.Get(ContextUserID).(string)
+	if !ok || loggedInUserID == "" {
+		return echo.NewHTTPError(http.StatusUnauthorized, "User ID not available in context")
 	}
 
-	err := u.user.CreateUser(ctx, user.Name, user.Email, user.Plan, user.Password)
+	req := &UpdateUserReq{}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request payload format.")
+	}
+
+	if req.Name == "" && req.Email == nil && req.Password == nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "no fields provided")
+	}
+
+	err := u.user.UpdateUser(ctx, loggedInUserID, req.Name, req.Email, req.Password)
+
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Create User error: %s", err))
+		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("Error updating user: %s", err))
 	}
 
-	return echo.NewHTTPError(http.StatusCreated, "user created successfully")
-
+	return echo.NewHTTPError(http.StatusCreated, "user updated successfully")
 }
 
 func (u *UserHandler) LoginHandler(c echo.Context) error {
@@ -176,7 +187,6 @@ func (u *UserHandler) RenewTokenHandler(c echo.Context) error {
 	}
 
 	req, err := u.user.RenewAccessToken(ctx, refreshToken.RefreshToken)
-
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error renew  token")
 	}
@@ -184,7 +194,6 @@ func (u *UserHandler) RenewTokenHandler(c echo.Context) error {
 		"message": "renew successfully",
 		"user":    req,
 	})
-
 }
 
 func (u *UserHandler) RevokeTokenHandler(c echo.Context) error {

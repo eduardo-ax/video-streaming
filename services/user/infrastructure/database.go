@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/eduardo-ax/video-streaming/services/user/domain"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -66,15 +67,57 @@ func (db *Database) DeleteUser(ctx context.Context, id string) error {
 	return nil
 }
 
+func (db *Database) UpdateUser(ctx context.Context, id string, name string, email *string, password *string) error {
+	var setClauses []string
+	var args []interface{}
+	argCount := 1
+
+	if name != "" {
+		setClauses = append(setClauses, fmt.Sprintf("name=$%d", argCount))
+		args = append(args, name)
+		argCount++
+	}
+
+	if email != nil {
+		setClauses = append(setClauses, fmt.Sprintf("email=$%d", argCount))
+		args = append(args, *email)
+		argCount++
+	}
+
+	if password != nil {
+		setClauses = append(setClauses, fmt.Sprintf("password_hash=$%d", argCount))
+		args = append(args, *password)
+		argCount++
+	}
+
+	if len(setClauses) == 0 {
+		return fmt.Errorf("no fields to update")
+	}
+
+	query := fmt.Sprintf(
+		"UPDATE users SET %s WHERE id=$%d",
+		strings.Join(setClauses, ", "),
+		argCount,
+	)
+
+	args = append(args, id)
+	commandTag, err := db.pool.Exec(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("error executing update query: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("user not found or no changes were made")
+	}
+	return nil
+}
+
 func (db *Database) GetUser(ctx context.Context, email string) (*domain.UserAuthData, error) {
 	user := &domain.UserAuthData{}
 	err := db.pool.QueryRow(ctx, "SELECT id,password,plan FROM users WHERE email = $1", email).Scan(&user.ID, &user.Password, &user.Plan)
 	if err != nil {
 		return user, fmt.Errorf("user doesn't exist")
 	}
-
 	return user, nil
-
 }
 
 func (db *Database) CreateSession(ctx context.Context, session *domain.Session) (*domain.Session, error) {
@@ -112,6 +155,5 @@ func (db *Database) DeleteSession(ctx context.Context, id string) error {
 	if query.RowsAffected() == 0 {
 		return fmt.Errorf("session doesn't exist")
 	}
-
 	return nil
 }

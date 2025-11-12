@@ -106,8 +106,6 @@ services:
     env_file:
       - .env
 
-
-
 volumes:
   videos_data:
   users_data:
