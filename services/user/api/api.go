@@ -44,6 +44,7 @@ func SetRefreshTokenCookie(c echo.Context, refreshToken string, expiresAt time.T
 }
 
 const ContextUserID = "userID"
+const ContextSessionID = "sessionID"
 
 func (u *UserHandler) AuthMiddleware(tokenMaker *token.JWTMaker) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -64,6 +65,7 @@ func (u *UserHandler) AuthMiddleware(tokenMaker *token.JWTMaker) echo.Middleware
 				return JSONError(c, http.StatusUnauthorized, "invalid or expired access token")
 			}
 			c.Set(ContextUserID, claims.ID)
+			c.Set(ContextSessionID, claims.RegisteredClaims.ID)
 			return next(c)
 		}
 	}
@@ -172,14 +174,14 @@ func (u *UserHandler) LoginHandler(c echo.Context) error {
 func (u *UserHandler) LogoutHandler(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	loggedInUserID, ok := c.Get(ContextUserID).(string)
-	if !ok || loggedInUserID == "" {
-		return JSONError(c, http.StatusUnauthorized, "user ID not available in context")
+	sessionID, ok := c.Get(ContextSessionID).(string)
+	if !ok || sessionID == "" {
+		return JSONError(c, http.StatusUnauthorized, "invalid authorization format")
 	}
 
-	err := u.user.UserLogout(ctx, ContextUserID)
+	err := u.user.UserLogout(ctx, sessionID)
 	if err != nil {
-		return JSONError(c, http.StatusInternalServerError, fmt.Sprintf("failed to logout user %s", err))
+		return JSONError(c, http.StatusInternalServerError, fmt.Sprintf("failed to logout user: %s", err))
 	}
 	return JSONSucess(c, http.StatusOK, "logout successfully")
 }
@@ -194,6 +196,7 @@ func (u *UserHandler) RenewTokenHandler(c echo.Context) error {
 		}
 		return JSONError(c, http.StatusUnauthorized, "invalid request")
 	}
+
 	refreshTokenValue := cookie.Value
 	renewResponse, err := u.user.RenewAccessToken(ctx, refreshTokenValue)
 	if err != nil {
@@ -208,17 +211,12 @@ func (u *UserHandler) RenewTokenHandler(c echo.Context) error {
 func (u *UserHandler) RevokeTokenHandler(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	loggedInUserID, ok := c.Get(ContextUserID).(string)
-	if !ok || loggedInUserID == "" {
+	SessionID, ok := c.Get(ContextSessionID).(string)
+	if !ok || SessionID == "" {
 		return JSONError(c, http.StatusUnauthorized, "user ID not available in context")
 	}
 
-	id := c.Param("id")
-	if id == "" {
-		return JSONError(c, http.StatusBadRequest, "invalid request body")
-	}
-
-	err := u.user.RevokeSession(ctx, id)
+	err := u.user.RevokeSession(ctx, SessionID)
 	if err != nil {
 		return JSONError(c, http.StatusInternalServerError, fmt.Sprintf("failed to revoke session %s", err))
 	}
