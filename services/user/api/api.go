@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -10,33 +11,6 @@ import (
 	"github.com/eduardo-ax/video-streaming/services/user/token"
 	"github.com/labstack/echo/v4"
 )
-
-type UserRequest struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Plan     int8   `json:"plan"`
-	Password string `json:"password"`
-}
-
-type LoginUserRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-type UpdateUserReq struct {
-	Name     string  `json:"name,omitempty"`
-	Email    *string `json:"email,omitempty"`
-	Password *string `json:"password,omitempty"`
-}
-
-type RenewAccessTokenReq struct {
-	RefreshToken string `json:"refresh_token"`
-}
-
-type RenewAccessTokenRes struct {
-	AccessToken         string    `json:"access_token"`
-	AcessTokenExpiresAt time.Time `json:"acess_token_expires_at"`
-}
 
 type UserHandler struct {
 	user domain.UserInterface
@@ -48,6 +22,27 @@ func NewUserHander(user domain.UserInterface) *UserHandler {
 	}
 }
 
+func JSONError(c echo.Context, status int, message string) error {
+	return c.JSON(status, map[string]string{"error": message})
+}
+
+func JSONSucess(c echo.Context, status int, message string) error {
+	return c.JSON(status, map[string]string{"message": message})
+}
+
+func SetRefreshTokenCookie(c echo.Context, refreshToken string, expiresAt time.Time) {
+	cookie := new(http.Cookie)
+	cookie.Name = "refresh_token"
+	cookie.Value = refreshToken
+	cookie.Expires = expiresAt
+	cookie.HttpOnly = true
+	cookie.Secure = true
+	cookie.Path = "/"
+	cookie.SameSite = http.SameSiteLaxMode
+
+	c.SetCookie(cookie)
+}
+
 const ContextUserID = "userID"
 
 func (u *UserHandler) AuthMiddleware(tokenMaker *token.JWTMaker) echo.MiddlewareFunc {
@@ -55,18 +50,18 @@ func (u *UserHandler) AuthMiddleware(tokenMaker *token.JWTMaker) echo.Middleware
 		return func(c echo.Context) error {
 			authHeader := c.Request().Header.Get("Authorization")
 			if authHeader == "" {
-				return echo.NewHTTPError(http.StatusUnauthorized, "Missing authorization header")
+				return JSONError(c, http.StatusUnauthorized, "missing authorization header")
 			}
 
 			fields := strings.Fields(authHeader)
 			if len(fields) < 2 || strings.ToLower(fields[0]) != "bearer" {
-				return echo.NewHTTPError(http.StatusUnauthorized, "Invalid authorization format")
+				return JSONError(c, http.StatusUnauthorized, "invalid authorization format")
 			}
 
 			accessToken := fields[1]
 			claims, err := tokenMaker.VerifyToken(accessToken)
 			if err != nil {
-				return echo.NewHTTPError(http.StatusUnauthorized, "Invalid or expired access token")
+				return JSONError(c, http.StatusUnauthorized, "invalid or expired access token")
 			}
 			c.Set(ContextUserID, claims.ID)
 			return next(c)
@@ -85,7 +80,7 @@ func (u *UserHandler) Register(g *echo.Group, tokenMaker *token.JWTMaker) {
 	protected.PUT("/user", u.UpdateUserHandler)
 	protected.DELETE("/user", u.DeleteUserHandler)
 
-	protected.POST("/logout/:id", u.LogoutHandler)
+	protected.POST("/logout/", u.LogoutHandler)
 	protected.POST("/revoke/:id", u.RevokeTokenHandler)
 }
 
@@ -94,14 +89,14 @@ func (u *UserHandler) CreateUserHandler(c echo.Context) error {
 	user := &UserRequest{}
 
 	if err := c.Bind(user); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid request payload")
+		return JSONError(c, http.StatusBadRequest, "invalid request body")
 	}
 
 	err := u.user.CreateUser(ctx, user.Name, user.Email, user.Plan, user.Password)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Create User error: %s", err))
+		return JSONError(c, http.StatusInternalServerError, fmt.Sprintf("failed to create user: %s", err))
 	}
-	return echo.NewHTTPError(http.StatusCreated, "user created successfully")
+	return JSONSucess(c, http.StatusCreated, "user created successfully")
 }
 
 func (u *UserHandler) DeleteUserHandler(c echo.Context) error {
@@ -109,14 +104,14 @@ func (u *UserHandler) DeleteUserHandler(c echo.Context) error {
 
 	loggedInUserID, ok := c.Get(ContextUserID).(string)
 	if !ok || loggedInUserID == "" {
-		return echo.NewHTTPError(http.StatusUnauthorized, "User ID not available in context")
+		return JSONError(c, http.StatusUnauthorized, "user ID not available in context")
 	}
 
 	err := u.user.DeleteUser(ctx, loggedInUserID)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("Error deleting user: %s", err))
+		return JSONError(c, http.StatusInternalServerError, fmt.Sprintf("failed to delete user: %s", err))
 	}
-	return echo.NewHTTPError(http.StatusOK, "User deleted successfully")
+	return JSONSucess(c, http.StatusNoContent, "user deleted successfully")
 }
 
 func (u *UserHandler) UpdateUserHandler(c echo.Context) error {
@@ -124,25 +119,23 @@ func (u *UserHandler) UpdateUserHandler(c echo.Context) error {
 
 	loggedInUserID, ok := c.Get(ContextUserID).(string)
 	if !ok || loggedInUserID == "" {
-		return echo.NewHTTPError(http.StatusUnauthorized, "User ID not available in context")
+		return JSONError(c, http.StatusUnauthorized, "user ID not available in context")
 	}
 
-	req := &UpdateUserReq{}
+	req := &UpdateUserRequest{}
 	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request payload format.")
+		return JSONError(c, http.StatusBadRequest, "invalid request body format.")
 	}
 
 	if req.Name == "" && req.Email == nil && req.Password == nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "no fields provided")
+		return JSONError(c, http.StatusBadRequest, "no fields provided")
 	}
 
 	err := u.user.UpdateUser(ctx, loggedInUserID, req.Name, req.Email, req.Password)
-
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("Error updating user: %s", err))
+		return JSONError(c, http.StatusInternalServerError, fmt.Sprintf("failed to update user: %s", err))
 	}
-
-	return echo.NewHTTPError(http.StatusCreated, "user updated successfully")
+	return JSONSucess(c, http.StatusOK, "user updated successfully")
 }
 
 func (u *UserHandler) LoginHandler(c echo.Context) error {
@@ -150,63 +143,84 @@ func (u *UserHandler) LoginHandler(c echo.Context) error {
 	userLogin := &LoginUserRequest{}
 
 	if err := c.Bind(userLogin); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid request payload")
+		return JSONError(c, http.StatusBadRequest, "invalid request body format")
 	}
 
 	userClaims, err := u.user.UserLogin(ctx, userLogin.Email, userLogin.Password)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "incorrect credentials")
+		return JSONError(c, http.StatusUnauthorized, "incorrect credentials")
 	}
 
+	refreshToken := userClaims.RefreshToken
+	expiresAtStr := userClaims.RefreshTokenExpiresAt
+
+	SetRefreshTokenCookie(c, refreshToken, expiresAtStr)
+
+	responseBody := map[string]interface{}{
+		"session_id":             userClaims.SessionID,
+		"access_token":           userClaims.AccessToken,
+		"acess_token_expires_at": userClaims.AccessTokenExpiresAt,
+		"user":                   userClaims.User,
+		"message":                "login successfully",
+	}
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "login successfully",
-		"user":    userClaims,
+		"user":    responseBody,
 	})
 }
 
 func (u *UserHandler) LogoutHandler(c echo.Context) error {
 	ctx := c.Request().Context()
-	id := c.Param("id")
 
-	if id == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid request payload")
+	loggedInUserID, ok := c.Get(ContextUserID).(string)
+	if !ok || loggedInUserID == "" {
+		return JSONError(c, http.StatusUnauthorized, "user ID not available in context")
 	}
 
-	err := u.user.UserLogout(ctx, id)
+	err := u.user.UserLogout(ctx, ContextUserID)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error logout user")
+		return JSONError(c, http.StatusInternalServerError, fmt.Sprintf("failed to logout user %s", err))
 	}
-	return echo.NewHTTPError(http.StatusOK, "logout successfully")
+	return JSONSucess(c, http.StatusOK, "logout successfully")
 }
 
 func (u *UserHandler) RenewTokenHandler(c echo.Context) error {
 	ctx := c.Request().Context()
-	refreshToken := &RenewAccessTokenReq{}
-	if err := c.Bind(refreshToken); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid request payload")
-	}
 
-	req, err := u.user.RenewAccessToken(ctx, refreshToken.RefreshToken)
+	cookie, err := c.Cookie("refresh_token")
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error renew  token")
+		if errors.Is(err, http.ErrNoCookie) {
+			return JSONError(c, http.StatusUnauthorized, "refresh token required")
+		}
+		return JSONError(c, http.StatusUnauthorized, "invalid request")
+	}
+	refreshTokenValue := cookie.Value
+	renewResponse, err := u.user.RenewAccessToken(ctx, refreshTokenValue)
+	if err != nil {
+		return JSONError(c, http.StatusInternalServerError, "failed to renew token")
 	}
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"message": "renew successfully",
-		"user":    req,
+		"message":      "renew successfully",
+		"access_token": renewResponse.AccessToken,
 	})
 }
 
 func (u *UserHandler) RevokeTokenHandler(c echo.Context) error {
 	ctx := c.Request().Context()
-	id := c.Param("id")
 
+	loggedInUserID, ok := c.Get(ContextUserID).(string)
+	if !ok || loggedInUserID == "" {
+		return JSONError(c, http.StatusUnauthorized, "user ID not available in context")
+	}
+
+	id := c.Param("id")
 	if id == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid request payload")
+		return JSONError(c, http.StatusBadRequest, "invalid request body")
 	}
 
 	err := u.user.RevokeSession(ctx, id)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error logout user")
+		return JSONError(c, http.StatusInternalServerError, fmt.Sprintf("failed to revoke session %s", err))
 	}
-	return echo.NewHTTPError(http.StatusOK, "session revoke successfuly")
+	return JSONSucess(c, http.StatusOK, "session revoked successfully")
 }
