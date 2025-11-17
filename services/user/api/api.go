@@ -13,12 +13,14 @@ import (
 )
 
 type UserHandler struct {
-	user domain.UserInterface
+	user    domain.UserInterface
+	metrics Metrics
 }
 
-func NewUserHander(user domain.UserInterface) *UserHandler {
+func NewUserHander(user domain.UserInterface, metrics Metrics) *UserHandler {
 	return &UserHandler{
-		user: user,
+		user:    user,
+		metrics: metrics,
 	}
 }
 
@@ -40,6 +42,18 @@ func SetRefreshTokenCookie(c echo.Context, refreshToken string, expiresAt time.T
 	cookie.Path = "/"
 	cookie.SameSite = http.SameSiteLaxMode
 
+	c.SetCookie(cookie)
+}
+
+func ClearRefreshTokenCookie(c echo.Context) {
+	cookie := new(http.Cookie)
+	cookie.Name = "refresh_token"
+	cookie.Value = ""
+	cookie.MaxAge = -1
+	cookie.Path = "/"
+	cookie.HttpOnly = true
+	cookie.Secure = true
+	cookie.SameSite = http.SameSiteStrictMode
 	c.SetCookie(cookie)
 }
 
@@ -86,6 +100,17 @@ func (u *UserHandler) Register(g *echo.Group, tokenMaker *token.JWTMaker) {
 	protected.POST("/revoke/:id", u.RevokeTokenHandler)
 }
 
+// CreateUserHandler godoc
+// @Summary Create user
+// @Description Create user
+// @Tags User
+// @Accept json
+// @Produce json
+// @Param login body UserRequest true "Create user credentials"
+// @Success 200 {object} MessageResponse
+// @Failure 500 {object} ErrorResponse "Internal Server Error"
+// @Failure 401 {object} ErrorResponse "Unauthorized"
+// @Router /v1/user [post]
 func (u *UserHandler) CreateUserHandler(c echo.Context) error {
 	ctx := c.Request().Context()
 	user := &UserRequest{}
@@ -98,9 +123,21 @@ func (u *UserHandler) CreateUserHandler(c echo.Context) error {
 	if err != nil {
 		return JSONError(c, http.StatusInternalServerError, fmt.Sprintf("failed to create user: %s", err))
 	}
+	u.metrics.IncUsersCreated()
+
 	return JSONSucess(c, http.StatusCreated, "user created successfully")
 }
 
+// DeleteUserHandler godoc
+// @Summary Delete user
+// @Description Delete user
+// @Tags User
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} MessageResponse
+// @Failure 500 {object} ErrorResponse "Internal Server Error"
+// @Failure 401 {object} ErrorResponse "Unauthorized"
+// @Router /v1/user [delete]
 func (u *UserHandler) DeleteUserHandler(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -116,6 +153,19 @@ func (u *UserHandler) DeleteUserHandler(c echo.Context) error {
 	return JSONSucess(c, http.StatusNoContent, "user deleted successfully")
 }
 
+// UpdateUserHandler godoc
+// @Summary Update user
+// @Description Update user credentials
+// @Tags User
+// @Accept json
+// @Produce json
+// @Param login body UpdateUserRequest true "Update user credentials"
+// @Security BearerAuth
+// @Success 200 {object} MessageResponse
+// @Failure 400 {object} ErrorResponse "Bad Request"
+// @Failure 500 {object} ErrorResponse "Internal Server Error"
+// @Failure 401 {object} ErrorResponse "Unauthorized"
+// @Router /v1/user [put]
 func (u *UserHandler) UpdateUserHandler(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -140,8 +190,20 @@ func (u *UserHandler) UpdateUserHandler(c echo.Context) error {
 	return JSONSucess(c, http.StatusOK, "user updated successfully")
 }
 
+// LoginHandler godoc
+// @Summary User login
+// @Description Authenticate user and return tokens
+// @Tags User
+// @Accept json
+// @Produce json
+// @Param login body LoginUserRequest true "User login credentials"
+// @Success 200 {object} LoginSuccessResponse
+// @Failure 400 {object} ErrorResponse "Invalid request body"
+// @Failure 401 {object} ErrorResponse "Invalid email or password"
+// @Router /v1/login [post]
 func (u *UserHandler) LoginHandler(c echo.Context) error {
 	ctx := c.Request().Context()
+	start := time.Now()
 	userLogin := &LoginUserRequest{}
 
 	if err := c.Bind(userLogin); err != nil {
@@ -153,24 +215,29 @@ func (u *UserHandler) LoginHandler(c echo.Context) error {
 		return JSONError(c, http.StatusUnauthorized, "incorrect credentials")
 	}
 
-	refreshToken := userClaims.RefreshToken
-	expiresAtStr := userClaims.RefreshTokenExpiresAt
+	SetRefreshTokenCookie(c, userClaims.RefreshToken, userClaims.RefreshTokenExpiresAt)
 
-	SetRefreshTokenCookie(c, refreshToken, expiresAtStr)
-
-	responseBody := map[string]interface{}{
-		"session_id":             userClaims.SessionID,
-		"access_token":           userClaims.AccessToken,
-		"acess_token_expires_at": userClaims.AccessTokenExpiresAt,
-		"user":                   userClaims.User,
-		"message":                "login successfully",
+	u.metrics.IncLoginSuccess()
+	u.metrics.ObserveLoginDuration(time.Since(start).Seconds())
+	resp := LoginSuccessResponse{
+		SessionID:          userClaims.SessionID,
+		AccessToken:        userClaims.AccessToken,
+		AccessTokenExpires: userClaims.AccessTokenExpiresAt,
+		User:               userClaims.User,
+		Message:            "login successfully",
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"message": "login successfully",
-		"user":    responseBody,
-	})
+	return c.JSON(http.StatusOK, resp)
 }
 
+// LogoutHandler godoc
+// @Summary Logout user
+// @Description Deletes user session and clears refresh token cookie
+// @Tags User
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} MessageResponse
+// @Failure 401 {object} ErrorResponse "Unauthorized"
+// @Router /v1/logout/ [post]
 func (u *UserHandler) LogoutHandler(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -183,11 +250,25 @@ func (u *UserHandler) LogoutHandler(c echo.Context) error {
 	if err != nil {
 		return JSONError(c, http.StatusInternalServerError, fmt.Sprintf("failed to logout user: %s", err))
 	}
+
+	ClearRefreshTokenCookie(c)
+
 	return JSONSucess(c, http.StatusOK, "logout successfully")
 }
 
+// RenewTokenHandler godoc
+// @Summary Renew access token
+// @Description Renew access token usinng refresh token
+// @Tags Token
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} MessageResponse
+// @Failure 500 {object} ErrorResponse "Internal Server Error"
+// @Failure 401 {object} ErrorResponse "Unauthorized"
+// @Router /v1/renew [post]
 func (u *UserHandler) RenewTokenHandler(c echo.Context) error {
 	ctx := c.Request().Context()
+	start := time.Now()
 
 	cookie, err := c.Cookie("refresh_token")
 	if err != nil {
@@ -202,12 +283,25 @@ func (u *UserHandler) RenewTokenHandler(c echo.Context) error {
 	if err != nil {
 		return JSONError(c, http.StatusInternalServerError, "failed to renew token")
 	}
+
+	u.metrics.IncSessionRenew()
+	u.metrics.ObserveSessionRenewDuration(time.Since(start).Seconds())
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message":      "renew successfully",
 		"access_token": renewResponse.AccessToken,
 	})
 }
 
+// RevokeTokenHandler godoc
+// @Summary Revoke refresh token
+// @Description Revoke refresh token using session id
+// @Tags Token
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} MessageResponse
+// @Failure 500 {object} ErrorResponse "Internal Server Error"
+// @Failure 401 {object} ErrorResponse "Unauthorized"
+// @Router /v1/revoke/:id [post]
 func (u *UserHandler) RevokeTokenHandler(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -221,4 +315,13 @@ func (u *UserHandler) RevokeTokenHandler(c echo.Context) error {
 		return JSONError(c, http.StatusInternalServerError, fmt.Sprintf("failed to revoke session %s", err))
 	}
 	return JSONSucess(c, http.StatusOK, "session revoked successfully")
+}
+
+type Metrics interface {
+	IncUsersCreated()
+	IncLoginSuccess()
+	IncLoginError()
+	ObserveLoginDuration(seconds float64)
+	IncSessionRenew()
+	ObserveSessionRenewDuration(seconds float64)
 }

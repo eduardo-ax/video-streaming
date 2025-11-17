@@ -1,0 +1,242 @@
+definitions:
+  api.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  api.LoginSuccessResponse:
+    properties:
+      access_token:
+        type: string
+      access_token_expires_at:
+        type: string
+      message:
+        type: string
+      session_id:
+        type: string
+      user: {}
+    type: object
+  api.LoginUserRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  api.MessageResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  api.UpdateUserRequest:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+      password:
+        type: string
+    type: object
+  api.UserRequest:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+      password:
+        type: string
+      plan:
+        type: integer
+    type: object
+info:
+  contact: {}
+paths:
+  /v1/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user and return tokens
+      parameters:
+      - description: User login credentials
+        in: body
+        name: login
+        required: true
+        schema:
+          $ref: '#/definitions/api.LoginUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.LoginSuccessResponse'
+        "400":
+          description: Invalid request body
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "401":
+          description: Invalid email or password
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: User login
+      tags:
+      - User
+  /v1/logout/:
+    post:
+      description: Deletes user session and clears refresh token cookie
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Logout user
+      tags:
+      - User
+  /v1/renew:
+    post:
+      description: Renew access token usinng refresh token
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Renew access token
+      tags:
+      - Token
+  /v1/revoke/:id:
+    post:
+      description: Revoke refresh token using session id
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Revoke refresh token
+      tags:
+      - Token
+  /v1/user:
+    delete:
+      description: Delete user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete user
+      tags:
+      - User
+    post:
+      consumes:
+      - application/json
+      description: Create user
+      parameters:
+      - description: Create user credentials
+        in: body
+        name: login
+        required: true
+        schema:
+          $ref: '#/definitions/api.UserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Create user
+      tags:
+      - User
+    put:
+      consumes:
+      - application/json
+      description: Update user credentials
+      parameters:
+      - description: Update user credentials
+        in: body
+        name: login
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update user
+      tags:
+      - User
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

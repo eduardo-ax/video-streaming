@@ -67,7 +67,6 @@ func ValidateUpdateUserFields(name string, email *string, password *string) erro
 			return fmt.Errorf("password must be at least 8 characters long")
 		}
 	}
-
 	return nil
 }
 

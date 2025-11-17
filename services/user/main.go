@@ -5,15 +5,27 @@ import (
 	"os"
 
 	"github.com/eduardo-ax/video-streaming/services/user/api"
+	_ "github.com/eduardo-ax/video-streaming/services/user/docs"
 	"github.com/eduardo-ax/video-streaming/services/user/domain"
 	"github.com/eduardo-ax/video-streaming/services/user/infrastructure"
+	metrics "github.com/eduardo-ax/video-streaming/services/user/observability"
 	"github.com/eduardo-ax/video-streaming/services/user/token"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	echoSwagger "github.com/swaggo/echo-swagger"
 )
 
 const minSecretKeySize = 32
 
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token.
+// @BasePath /v1
+// @host localhost:8080
 func main() {
 
 	err := godotenv.Load()
@@ -36,9 +48,15 @@ func main() {
 
 	u := domain.NewUserManager(db, token)
 
-	handler := api.NewUserHander(u)
+	reg := prometheus.NewRegistry()
+	m := metrics.NewUserMetrics(reg)
 
+	handler := api.NewUserHander(u, m)
 	echoServer := echo.New()
+	//echoServer.Use(middleware.CORS())
+
+	echoServer.GET("/metrics", echo.WrapHandler(promhttp.HandlerFor(reg, promhttp.HandlerOpts{})))
+	echoServer.GET("/swagger/*", echoSwagger.WrapHandler)
 	v1Group := echoServer.Group("/v1")
 	handler.Register(v1Group, token)
 	echoServer.Logger.Fatal(echoServer.Start(":8080"))
