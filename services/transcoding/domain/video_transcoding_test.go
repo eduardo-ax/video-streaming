@@ -39,5 +39,4 @@ func TestQueueContentValidate(t *testing.T) {
 			}
 		})
 	}
-
 }

@@ -36,7 +36,7 @@ func (v *UploadHandler) HandleVideoUpload(c echo.Context) error {
 	start := time.Now()
 	ctx := c.Request().Context()
 	req := &VideoRequest{}
-
+	//TODO send request to user service authmiddle
 	v.metrics.DevicesInc()
 	if err := c.Bind(req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request payload")
@@ -51,7 +51,7 @@ func (v *UploadHandler) HandleVideoUpload(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to upload video")
 	}
 
-	duration := time.Since(start).Seconds() // em segundos
+	duration := time.Since(start).Seconds()
 	v.metrics.VideoUploadTime().Observe(duration)
 	v.metrics.UploadsInc()
 	return echo.NewHTTPError(http.StatusCreated, "video uploaded successfully")
