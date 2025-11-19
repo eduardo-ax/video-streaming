@@ -85,12 +85,12 @@ func (u *UserHandler) AuthMiddleware(tokenMaker *token.JWTMaker) echo.Middleware
 	}
 }
 
-func (u *UserHandler) Register(g *echo.Group, tokenMaker *token.JWTMaker) {
-	g.POST("/user", u.CreateUserHandler)
-	g.POST("/login", u.LoginHandler)
-	g.POST("/renew", u.RenewTokenHandler)
+func (u *UserHandler) Register(e *echo.Group, tokenMaker *token.JWTMaker) {
+	e.POST("/user", u.CreateUserHandler)
+	e.POST("/login", u.LoginHandler)
+	e.POST("/renew", u.RenewTokenHandler)
 
-	protected := g.Group("")
+	protected := e.Group("")
 	protected.Use(u.AuthMiddleware(tokenMaker))
 
 	protected.PUT("/user", u.UpdateUserHandler)
