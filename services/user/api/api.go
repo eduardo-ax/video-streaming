@@ -119,7 +119,7 @@ func (u *UserHandler) CreateUserHandler(c echo.Context) error {
 		return JSONError(c, http.StatusBadRequest, "invalid request body")
 	}
 
-	err := u.user.CreateUser(ctx, user.Name, user.Email, user.Plan, user.Password)
+	err := u.user.CreateUser(ctx, user.Name, user.Email, user.Password)
 	if err != nil {
 		return JSONError(c, http.StatusInternalServerError, fmt.Sprintf("failed to create user: %s", err))
 	}

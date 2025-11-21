@@ -39,7 +39,7 @@ func (db *Database) Close() {
 	db.pool.Close()
 }
 
-func (db *Database) Persist(ctx context.Context, name string, email string, password string, plan int8) (string, error) {
+func (db *Database) Persist(ctx context.Context, name string, email string, password string, plan uint8) (string, error) {
 	var id string
 	err := db.pool.QueryRow(ctx, "INSERT INTO users (name,email,password,plan) VALUES ($1, $2, $3, $4) RETURNING id", name, email, password, plan).Scan(&id)
 

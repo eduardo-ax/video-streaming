@@ -60,10 +60,10 @@ func TestVideoValidate(t *testing.T) {
 
 type MockStorage struct{ mock.Mock }
 
-func (m *MockStorage) Persist(ctx context.Context, title string, description string) (int, error) {
-	args := m.Called(ctx, title, description)
+func (m *MockStorage) Persist(ctx context.Context, title string, description string, user_id string) (int, error) {
+	args := m.Called(ctx, title, description, user_id)
 	return args.Get(0).(int), args.Error(1)
-}
+} 
 
 type MockMessagePublisher struct{ mock.Mock }
 
@@ -92,6 +92,7 @@ func TestVideoManager_Store(t *testing.T) {
 		title       string
 		description string
 		content     *multipart.FileHeader
+		user_id     string
 		expected    bool
 		setupMocks  func(storage *MockStorage, publisher *MockMessagePublisher, objectStore *MockObjectStore)
 		desc        string
@@ -100,6 +101,7 @@ func TestVideoManager_Store(t *testing.T) {
 			title:       "Sample Video",
 			description: "This is a sample video description.",
 			content:     file,
+			user_id:     "123123123dasdasdqweqwe_eqwewq",
 			setupMocks: func(db *MockStorage, pub *MockMessagePublisher, store *MockObjectStore) {
 				db.On("Persist", mock.Anything, "Sample Video", "This is a sample video description.").Return(1, nil)
 				pub.On("SendMessage", mock.Anything, "1").Return(nil)
@@ -112,6 +114,7 @@ func TestVideoManager_Store(t *testing.T) {
 			title:       "Sample Video",
 			description: "This is a sample video description.",
 			content:     file,
+			user_id:     "123123123dasdasdqweqwe_eqwewq",
 			setupMocks: func(db *MockStorage, pub *MockMessagePublisher, store *MockObjectStore) {
 				db.On("Persist", mock.Anything, "Sample Video", "This is a sample video description.").Return(-1, errors.New("failed to persist"))
 			},
@@ -122,6 +125,7 @@ func TestVideoManager_Store(t *testing.T) {
 			title:       "Sample Video",
 			description: "This is a sample video description.",
 			content:     file,
+			user_id:     "123123123dasdasdqweqwe_eqwewq",
 			setupMocks: func(db *MockStorage, pub *MockMessagePublisher, store *MockObjectStore) {
 				db.On("Persist", mock.Anything, "Sample Video", "This is a sample video description.").Return(1, nil)
 				pub.On("SendMessage", mock.Anything, "1").Return(errors.New("failed to send message"))
@@ -133,6 +137,7 @@ func TestVideoManager_Store(t *testing.T) {
 			title:       "Sample Video",
 			description: "This is a sample video description.",
 			content:     file,
+			user_id:     "123123123dasdasdqweqwe_eqwewq",
 			setupMocks: func(db *MockStorage, pub *MockMessagePublisher, store *MockObjectStore) {
 				db.On("Persist", mock.Anything, "Sample Video", "This is a sample video description.").Return(1, nil)
 				pub.On("SendMessage", mock.Anything, "1").Return(nil)
@@ -151,7 +156,7 @@ func TestVideoManager_Store(t *testing.T) {
 
 			tc.setupMocks(dbMock, pubMock, storeMock)
 			manager := NewVideoManager(dbMock, pubMock, storeMock)
-			err := manager.Store(ctx, tc.title, tc.description, tc.content)
+			err := manager.Store(ctx, tc.title, tc.description, tc.content, tc.user_id)
 
 			if tc.expected {
 				assert.NoError(t, err)

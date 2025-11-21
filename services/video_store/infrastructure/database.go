@@ -34,9 +34,9 @@ func (db *Database) Close() {
 	db.pool.Close()
 }
 
-func (db *Database) Persist(ctx context.Context, title string, description string) (int, error) {
+func (db *Database) Persist(ctx context.Context, title string, description string, user_id string) (int, error) {
 	var id int
-	err := db.pool.QueryRow(ctx, "INSERT INTO videos (title, description) VALUES ($1, $2) RETURNING id", title, description).Scan(&id)
+	err := db.pool.QueryRow(ctx, "INSERT INTO videos (title, description,user_id) VALUES ($1, $2, $3) RETURNING id", title, description, user_id).Scan(&id)
 
 	if err != nil {
 		return -1, err

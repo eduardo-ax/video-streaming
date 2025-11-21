@@ -5,7 +5,6 @@ import "time"
 type UserRequest struct {
 	Name     string `json:"name"`
 	Email    string `json:"email"`
-	Plan     int8   `json:"plan"`
 	Password string `json:"password"`
 }
 

@@ -11,7 +11,7 @@ import (
 )
 
 type Storage interface {
-	Persist(ctx context.Context, name string, email string, password string, plan int8) (string, error)
+	Persist(ctx context.Context, name string, email string, password string, plan uint8) (string, error)
 	DeleteUser(ctx context.Context, id string) error
 	UpdateUser(ctx context.Context, id string, name string, email *string, password *string) error
 	GetUser(ctx context.Context, email string) (*UserAuthData, error)
@@ -27,7 +27,7 @@ type TokenInterface interface {
 }
 
 type UserInterface interface {
-	CreateUser(ctx context.Context, name string, email string, plan int8, pass string) error
+	CreateUser(ctx context.Context, name string, email string, pass string) error
 	DeleteUser(ctx context.Context, id string) error
 	UpdateUser(ctx context.Context, id string, name string, email *string, password *string) error
 	UserLogin(ctx context.Context, email string, password string) (*LoginUserRes, error)
@@ -43,7 +43,37 @@ func NewUserManager(db Storage, token TokenInterface) *UserManager {
 	}
 }
 
-func ValidateUpdateUserFields(name string, email *string, password *string) error {
+func (u *UserManager) NewUser(name string, email string, password string) (*User, error) {
+
+	if len(name) < 4 || len(name) > 20 {
+		return &User{}, fmt.Errorf("name invalid format")
+	}
+
+	if email == "" {
+		return &User{}, fmt.Errorf("email cannot be empty when provided")
+	}
+	_, err := mail.ParseAddress(email)
+	if err != nil {
+		return &User{}, fmt.Errorf("invalid email format")
+	}
+	if len(password) < 8 {
+		return &User{}, fmt.Errorf("password must be at least 8 characters long")
+	}
+
+	cryptPassword, err := HashPassword(password)
+	if err != nil {
+		return &User{}, fmt.Errorf("password must be at least 8 characters long")
+	}
+
+	return &User{
+		Name:     name,
+		Email:    email,
+		Password: cryptPassword,
+		Plan:     1,
+	}, nil
+}
+
+func (u *UserManager) ValidateUpdateUserFields(name string, email *string, password *string) error {
 	if name != "" {
 		if len(name) < 4 || len(name) > 20 {
 			return fmt.Errorf("name invalid format")
@@ -63,19 +93,20 @@ func ValidateUpdateUserFields(name string, email *string, password *string) erro
 
 	if password != nil {
 		passwordValue := *password
-		if len(passwordValue) < 8 { // Exemplo de regra
+		if len(passwordValue) < 8 {
 			return fmt.Errorf("password must be at least 8 characters long")
 		}
 	}
 	return nil
 }
 
-func (u *UserManager) CreateUser(ctx context.Context, name string, email string, plan int8, password string) error {
-	cryptPassword, err := HashPassword(password)
+func (u *UserManager) CreateUser(ctx context.Context, name string, email string, password string) error {
+
+	user, err := u.NewUser(name, email, password)
 	if err != nil {
 		return err
 	}
-	_, err = u.db.Persist(ctx, name, email, cryptPassword, plan)
+	_, err = u.db.Persist(ctx, user.Name, user.Email, user.Password, user.Plan)
 	if err != nil {
 		return err
 	}
@@ -91,7 +122,7 @@ func (u *UserManager) DeleteUser(ctx context.Context, id string) error {
 }
 
 func (u *UserManager) UpdateUser(ctx context.Context, id string, name string, email *string, password *string) error {
-	err := ValidateUpdateUserFields(name, email, password)
+	err := u.ValidateUpdateUserFields(name, email, password)
 	if err != nil {
 		return fmt.Errorf("invalid credentials: %w", err)
 	}

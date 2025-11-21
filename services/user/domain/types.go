@@ -11,7 +11,7 @@ type User struct {
 	Name     string
 	Email    string
 	Password string
-	Plan     string
+	Plan     uint8
 }
 
 type UserPayload struct {

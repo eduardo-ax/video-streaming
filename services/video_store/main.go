@@ -11,6 +11,7 @@ import (
 	"github.com/eduardo-ax/video-streaming/services/video_store/domain"
 	"github.com/eduardo-ax/video-streaming/services/video_store/infrastructure"
 	metrics "github.com/eduardo-ax/video-streaming/services/video_store/observability"
+	"github.com/eduardo-ax/video-streaming/services/video_store/token"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
@@ -51,9 +52,12 @@ func main() {
 
 	echoServer.GET("/metrics", echo.WrapHandler(promhttp.HandlerFor(reg, promhttp.HandlerOpts{})))
 
+	secretKey := os.Getenv("SECRET_KEY")
+	token := token.NewJWTMaker(secretKey)
+
 	v1Group := echoServer.Group("/v1")
 	handler := api.NewVideoHandler(videoUpload, m)
-	handler.Register(v1Group)
+	handler.Register(v1Group, token)
 
 	echoServer.Logger.Fatal(echoServer.Start(":8080"))
 
