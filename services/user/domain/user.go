@@ -43,7 +43,7 @@ func NewUserManager(db Storage, token TokenInterface) *UserManager {
 	}
 }
 
-func (u *UserManager) NewUser(name string, email string, password string) (*User, error) {
+func NewUser(name string, email string, password string) (*User, error) {
 
 	if len(name) < 4 || len(name) > 20 {
 		return &User{}, fmt.Errorf("name invalid format")
@@ -102,7 +102,7 @@ func (u *UserManager) ValidateUpdateUserFields(name string, email *string, passw
 
 func (u *UserManager) CreateUser(ctx context.Context, name string, email string, password string) error {
 
-	user, err := u.NewUser(name, email, password)
+	user, err := NewUser(name, email, password)
 	if err != nil {
 		return err
 	}
