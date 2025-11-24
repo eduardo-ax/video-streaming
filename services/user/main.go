@@ -12,6 +12,7 @@ import (
 	"github.com/eduardo-ax/video-streaming/services/user/token"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -53,7 +54,7 @@ func main() {
 
 	handler := api.NewUserHander(u, m)
 	echoServer := echo.New()
-	//echoServer.Use(middleware.CORS())
+	echoServer.Use(middleware.CORS())
 
 	echoServer.GET("/metrics", echo.WrapHandler(promhttp.HandlerFor(reg, promhttp.HandlerOpts{})))
 	echoServer.GET("/swagger/*", echoSwagger.WrapHandler)
